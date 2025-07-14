@@ -1,1240 +1,437 @@
-/* global Module */
+/* global Module, Log, moment, config */
 
 /* Magic Mirror
  * Module: MMM-Weather-SMHI
- *
- * By Fredrick Bäcker
+ * By Fredrick Bäcker, updated by community
  * MIT Licensed.
  */
 
 Module.register("MMM-Weather-SMHI", {
 	// Default module config.
 	defaults: {
-		url:
-			"http://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json",
+		url: "http://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json",
 		lon: 0,
 		lat: 0,
-
 		useBeaufort: true,
 		showWindDirection: false,
-		windDirectionMode: 0,
+		windDirectionMode: 0, // 0 = text, 1 = icon
 		showDailyWindInfo: false,
 		showDailyRainInfo: false,
 		tempDecimals: 1,
-		
-		units:
-			config.units,
+		units: config.units,
 		maxNumberOfDays: 5,
-		updateInterval:
-			10 *
-			60 *
-			1000, // every 10 minutes
+		updateInterval: 10 * 60 * 1000, // every 10 minutes
 		animationSpeed: 1000,
-		timeFormat:
-			config.timeFormat,
-		lang:
-			config.language,
+		timeFormat: config.timeFormat,
+		lang: config.language,
 		fade: true,
 		fadePoint: 0.25, // Start on 1/4th of the list.
-		title:
-			"Weather Forecast",
-
-		initialLoadDelay: 2500, // 2.5 seconds delay. This delay is used to keep the OpenWeather API happy.
+		title: "Väderprognos",
+		initialLoadDelay: 2500, // 2.5 seconds delay
 		retryDelay: 2500,
-
-		wdirDegreeToText: [
-			"N", "NNE", "NE", "ENE",
-			"E", "ESE", "SE", "SSE",
-			"S", "SSW", "SW", "WSW",
-			"W", "WNW", "NW", "NNW",
-			"N"
-		],
-		
+		wdirDegreeToText: ["N", "NNE", "NE", "ENE", "E", "ESE", "SE", "SSE", "S", "SSW", "SW", "WSW", "W", "WNW", "NW", "NNW", "N"],
 		iconTable: {
-			1: [	// SMHI: Clear sky
-				"wi-day-sunny",
-				"wi-night-clear"
-			],			
-			2: [	// SMHI: Nearly clear sky
-				"wi-day-sunny-overcast",
-				"wi-night-partly-cloudy"
-			],
-			3: [	// SMHI: Variable cloudness
-				"wi-day-cloudy",
-				"wi-night-alt-cloudy"
-			],
-			4: [	// SMHI: Halfclear sky
-				"wi-day-cloudy",
-				"wi-night-alt-cloudy"
-			],
-			5: [	// SMHI: Cloudy sky
-				"wi-day-cloudy",
-				"wi-night-alt-cloudy"
-			],
-			6: [	// SMHI: Overcast
-				"wi-cloudy",
-				"wi-cloudy"
-			],
-			7: [	// SMHI: Fog
-				"wi-day-fog",
-				"wi-night-fog"
-			],
-			8: [	// SMHI: Light rain showers
-				"wi-day-showers",
-				"wi-night-alt-showers"
-			],
-			9: [	// SMHI: Moderate rain showers
-				"wi-day-showers",
-				"wi-night-alt-showers"
-			],
-			10: [	// SMHI: Heavy rain showers
-				"wi-day-showers",
-				"wi-night-alt-showers"
-			],
-			11: [	// SMHI: Thunderstorm
-				"wi-day-thunderstorm",
-				"wi-night-alt-thunderstorm"
-			],
-			12: [	// SMHI: Light sleet showers
-				"wi-day-sleet",
-				"wi-night-alt-sleet"
-			],
-			13: [	// SMHI: Moderate sleet showers
-				"wi-day-sleet",
-				"wi-night-alt-sleet"
-			],
-			14: [	// SMHI: Heavy sleet showers
-				"wi-day-sleet",
-				"wi-night-alt-sleet"
-			],
-			15: [	// SMHI: Light snow showers
-				"wi-day-snow",
-				"wi-night-alt-snow"
-			],
-			16: [	// SMHI: Moderate snow showers
-				"wi-day-snow",
-				"wi-night-alt-snow"
-			],
-			17: [	// SMHI: Heavy snow showers
-				"wi-day-snow",
-				"wi-night-alt-snow"
-			],
-			18: [	// SMHI: Light rain
-				"wi-day-rain",
-				"wi-night-alt-rain"
-			],
-			19: [	// SMHI: Moderate rain
-				"wi-day-rain",
-				"wi-night-alt-rain"
-			],
-			20: [	// SMHI: Heavy rain
-				"wi-day-rain",
-				"wi-night-alt-rain"
-			],
-			21: [	// SMHI: Thunder
-				"wi-day-lightning",
-				"wi-night-alt-lightning"
-			],
-			22: [	// SMHI: Light sleet
-				"wi-day-sleet",
-				"wi-night-alt-sleet"
-			],
-			23: [	// SMHI: Moderate sleet
-				"wi-day-sleet",
-				"wi-night-alt-sleet"
-			],
-			24: [	// SMHI: Heavy sleet
-				"wi-day-sleet",
-				"wi-night-alt-sleet"
-			],
-			25: [	// SMHI: Light snowfall
-				"wi-day-snow",
-				"wi-night-alt-snow"
-			],
-			26: [	// SMHI: Moderate snowfall
-				"wi-day-snow",
-				"wi-night-alt-snow"
-			],
-			27: [	// SMHI: Heavy snowfall
-				"wi-day-snow",
-				"wi-night-alt-snow"
-			]
+			1: ["wi-day-sunny", "wi-night-clear"], // Clear sky
+			2: ["wi-day-sunny-overcast", "wi-night-partly-cloudy"], // Nearly clear sky
+			3: ["wi-day-cloudy", "wi-night-alt-cloudy"], // Variable cloudiness
+			4: ["wi-day-cloudy", "wi-night-alt-cloudy"], // Halfclear sky
+			5: ["wi-day-cloudy", "wi-night-alt-cloudy"], // Cloudy sky
+			6: ["wi-cloudy", "wi-cloudy"], // Overcast
+			7: ["wi-day-fog", "wi-night-fog"], // Fog
+			8: ["wi-day-showers", "wi-night-alt-showers"], // Light rain showers
+			9: ["wi-day-showers", "wi-night-alt-showers"], // Moderate rain showers
+			10: ["wi-day-showers", "wi-night-alt-showers"], // Heavy rain showers
+			11: ["wi-day-thunderstorm", "wi-night-alt-thunderstorm"], // Thunderstorm
+			12: ["wi-day-sleet", "wi-night-alt-sleet"], // Light sleet showers
+			13: ["wi-day-sleet", "wi-night-alt-sleet"], // Moderate sleet showers
+			14: ["wi-day-sleet", "wi-night-alt-sleet"], // Heavy sleet showers
+			15: ["wi-day-snow", "wi-night-alt-snow"], // Light snow showers
+			16: ["wi-day-snow", "wi-night-alt-snow"], // Moderate snow showers
+			17: ["wi-day-snow", "wi-night-alt-snow"], // Heavy snow showers
+			18: ["wi-day-rain", "wi-night-alt-rain"], // Light rain
+			19: ["wi-day-rain", "wi-night-alt-rain"], // Moderate rain
+			20: ["wi-day-rain", "wi-night-alt-rain"], // Heavy rain
+			21: ["wi-day-lightning", "wi-night-alt-lightning"], // Thunder
+			22: ["wi-day-sleet", "wi-night-alt-sleet"], // Light sleet
+			23: ["wi-day-sleet", "wi-night-alt-sleet"], // Moderate sleet
+			24: ["wi-day-sleet", "wi-night-alt-sleet"], // Heavy sleet
+			25: ["wi-day-snow", "wi-night-alt-snow"], // Light snowfall
+			26: ["wi-day-snow", "wi-night-alt-snow"], // Moderate snowfall
+			27: ["wi-day-snow", "wi-night-alt-snow"] // Heavy snowfall
 		}
 	},
 
-	// Define required scripts.
-	getScripts: function() {
-		return [
-			"moment.js"
-		];
+	getScripts: function () {
+		return ["moment.js"];
 	},
 
-	// Define required scripts.
-	getStyles: function() {
-		return [
-			"weather-icons.css",
-			"weather-icons-wind.css",
-			"MMM-Weather-SMHI.css"
-		];
+	getStyles: function () {
+		return ["weather-icons.css", "weather-icons-wind.css", "MMM-Weather-SMHI.css"];
 	},
 
-	// Define required translations.
-	getTranslations: function() {
-		// The translations for the defaut modules are defined in the core translation files.
-		// Therefor we can just return false. Otherwise we should have returned a dictionairy.
-		// If you're trying to build yiur own module including translations, check out the documentation.
+	getTranslations: function () {
 		return false;
 	},
 
-	// Get formated string, example
-	// stringFormat("%s, %s and %s", ["Me", "myself", "I"]); // "Me, myself and I"
-	stringFormat: function(
-		theString,
-		argumentArray
-	) {
-		var regex = /%s/;
-		var _r = function(
-			p,
-			c
-		) {
-			return p.replace(
-				regex,
-				c
-			);
+	stringFormat: function (theString, argumentArray) {
+		let regex = /%s/;
+		let _r = function (p, c) {
+			return p.replace(regex, c);
 		};
-		return argumentArray.reduce(
-			_r,
-			theString
-		);
+		return argumentArray.reduce(_r, theString);
 	},
 
-	// Define start sequence.
-	start: function() {
-		Log.info(
-			"Starting module: " +
-				this
-					.name
-		);
+	start: function () {
+		Log.info("Starting module: " + this.name);
+		moment.locale(config.language);
 
-		// Set locale.
-		moment.locale(
-			config.language
-		);
-
-		this.list = [];
 		this.forecast = [];
 		this.current = null;
 		this.loaded = false;
-		this.scheduleUpdate(
-			this
-				.config
-				.initialLoadDelay
-		);
-
+		this.scheduleUpdate(this.config.initialLoadDelay);
 		this.updateTimer = null;
 	},
 
-	// Override dom generator.
-	getDom: function() {
-		var wrapper = document.createElement(
-			"div"
-		);
+	getDom: function () {
+		const wrapper = document.createElement("div");
 
-		if (
-			this
-				.config
-				.lon ===
-				"" ||
-			this
-				.config
-				.lon ===
-				0
-		) {
-			wrapper.innerHTML =
-				"Please set the MMM-Weather-SMHI <i>lon</i> in the config for module: " +
-				this
-					.name +
-				".";
-			wrapper.className =
-				"dimmed light small";
+		if (this.config.lon === "" || this.config.lon === 0) {
+			wrapper.innerHTML = "Please set the MMM-Weather-SMHI <i>lon</i> in the config for module: " + this.name + ".";
+			wrapper.className = "dimmed light small";
 			return wrapper;
 		}
 
-		if (
-			this
-				.config
-				.lat ===
-				"" ||
-			this
-				.config
-				.lat ===
-				0
-		) {
-			wrapper.innerHTML =
-				"Please set the MMM-Weather-SMHI <i>lat</i> in the config for module: " +
-				this
-					.name +
-				".";
-			wrapper.className =
-				"dimmed light small";
+		if (this.config.lat === "" || this.config.lat === 0) {
+			wrapper.innerHTML = "Please set the MMM-Weather-SMHI <i>lat</i> in the config for module: " + this.name + ".";
+			wrapper.className = "dimmed light small";
 			return wrapper;
 		}
 
-		if (
-			!this
-				.loaded
-		) {
-			wrapper.innerHTML = this.translate(
-				"LOADING"
-			);
-			wrapper.className =
-				"dimmed light small";
+		if (!this.loaded) {
+			wrapper.innerHTML = this.translate("LOADING");
+			wrapper.className = "dimmed light small";
 			return wrapper;
 		}
 
-		// CURRENT
-		var small = document.createElement(
-			"span"
-		);
-		small.className =
-			"normal medium";
+		// CURRENT WEATHER
+		const small = document.createElement("span");
+		small.className = "normal medium";
 
-		var windIcon = document.createElement(
-			"span"
-		);
-		windIcon.className =
-			"wi wi-strong-wind dimmed";
-		small.appendChild(
-			windIcon
-		);
+		const windIcon = document.createElement("span");
+		windIcon.className = "wi wi-strong-wind dimmed";
+		small.appendChild(windIcon);
 
-		var speed = this
-			.current
-			.wind;
-		if (
-			this
-				.config
-				.useBeaufort
-		) {
-			speed = this.ms2Beaufort(
-				this.roundValue(
-					speed
-				)
-			);
+		let speed = this.current.wind;
+		if (this.config.useBeaufort) {
+			speed = this.ms2Beaufort(this.roundValue(speed));
 		} else {
-			speed = parseFloat(
-				speed
-			).toFixed(
-				0
-			);
+			speed = parseFloat(speed).toFixed(0);
 		}
-		var windSpeed = document.createElement(
-			"span"
-		);
-		windSpeed.innerHTML =
-			" " +
-			speed;
-		var windSpeedMark = document.createElement(
-			"sup"
-		);
-		windSpeedMark.innerHTML = this
-			.config
-			.useBeaufort
-			? "b"
-			: "s";
-		small.appendChild(
-			windSpeed
-		);
-		small.appendChild(
-			windSpeedMark
-		);
+		const windSpeed = document.createElement("span");
+		windSpeed.innerHTML = " " + speed;
+		const windSpeedMark = document.createElement("sup");
+		windSpeedMark.innerHTML = this.config.useBeaufort ? "b" : "s";
+		small.appendChild(windSpeed);
+		small.appendChild(windSpeedMark);
 
-		if (
-			this
-				.config
-				.showWindDirection
-		) {
-			if (
-				this
-					.config
-					.windDirectionMode == 0
-			) {
-				var windDirection = document.createElement(
-					"sup"
-				);
-				windDirection.innerHTML =
-					" " +
-					this.deg2Cardinal(
-						this
-							.current
-							.direction
-					);
-				small.appendChild(
-					windDirection
-				);
-			}
-			else {
-				var windDirection = document.createElement(
-					"span"
-				);
-				windDirection.className =
-					"wi wi-wind from-" +
-						parseFloat(
-							this
-								.current
-								.direction
-						).toFixed(
-							0
-						) +
-					"-deg";
-				small.appendChild(
-					windDirection
-				);
+		if (this.config.showWindDirection) {
+			if (this.config.windDirectionMode === 0) {
+				const windDirection = document.createElement("sup");
+				windDirection.innerHTML = " " + this.deg2Cardinal(this.current.direction);
+				small.appendChild(windDirection);
+			} else {
+				const windDirection = document.createElement("span");
+				windDirection.className = "wi wi-wind from-" + parseFloat(this.current.direction).toFixed(0) + "-deg";
+				small.appendChild(windDirection);
 			}
 		}
-		var spacer = document.createElement(
-			"span"
-		);
-		spacer.innerHTML =
-			"&nbsp;";
-		small.appendChild(
-			spacer
-		);
-		var large = document.createElement(
-			"div"
-		);
-		large.className =
-			"large light";
+		const spacer = document.createElement("span");
+		spacer.innerHTML = " ";
+		small.appendChild(spacer);
 
-		var weatherIcon = document.createElement(
-			"span"
-		);
-		weatherIcon.className =
-			"bright wi weather-icon-large " +
-			this
-				.current
-				.icon;
-		large.appendChild(
-			weatherIcon
-		);
+		const large = document.createElement("div");
+		large.className = "large light";
 
-		var temperature = document.createElement(
-			"span"
-		);
-		temperature.className =
-			"bright";
-		temperature.innerHTML =
-			" " +
-			this
-				.current
-				.temp +
-			"&deg;";
-		large.appendChild(
-			temperature
-		);
+		const weatherIcon = document.createElement("span");
+		weatherIcon.className = "bright wi weather-icon-large " + this.current.icon;
+		large.appendChild(weatherIcon);
 
-		large.insertBefore(
-			small,
-			weatherIcon
-		);
-		wrapper.appendChild(
-			large
-		);
+		const temperature = document.createElement("span");
+		temperature.className = "bright";
+		temperature.innerHTML = " " + this.current.temp + "°";
+		large.appendChild(temperature);
 
-		// FORECAST
-		var table = document.createElement(
-			"table"
-		);
-		table.className =
-			"small";
+		large.insertBefore(small, weatherIcon);
+		wrapper.appendChild(large);
 
-		for (var f in this
-			.forecast) {
-			var forecast = this
-				.forecast[
-					f
-				];
+		// FORECAST TABLE
+		const table = document.createElement("table");
+		table.className = "small";
 
-			var row = document.createElement(
-				"tr"
-			);
-			table.appendChild(
-				row
-			);
+		for (const f in this.forecast) {
+			const forecast = this.forecast[f];
+			const row = document.createElement("tr");
+			table.appendChild(row);
 
-			var dayCell = document.createElement(
-				"td"
-			);
-			dayCell.className =
-				"day";
-			dayCell.innerHTML =
-				forecast[0].day;
-			row.appendChild(
-				dayCell
-			);
+			const dayCell = document.createElement("td");
+			dayCell.className = "day";
+			dayCell.innerHTML = forecast.day;
+			row.appendChild(dayCell);
 
-			var maxTempCell = document.createElement(
-				"td"
-			);
-			maxTempCell.className =
-				"temp-daily bright";
-			maxTempCell.innerHTML =
-				forecast[0]
-					.temp +
-				"&deg;";
-			row.appendChild(
-				maxTempCell
-			);
+			const maxTempCell = document.createElement("td");
+			maxTempCell.className = "temp-daily bright";
+			maxTempCell.innerHTML = forecast.maxTemp + "°";
+			row.appendChild(maxTempCell);
 
-			var iconCell = document.createElement(
-				"td"
-			);
-			iconCell.className =
-				"bright weather-icon";
-			row.appendChild(
-				iconCell
-			);
+			let iconCell = document.createElement("td");
+			iconCell.className = "bright weather-icon";
+			row.appendChild(iconCell);
 
-			var icon = document.createElement(
-				"span"
-			);
-			icon.className =
-				"wi weathericon " +
-				forecast[0]
-					.icon;
-			iconCell.appendChild(
-				icon
-			);
+			let icon = document.createElement("span");
+			icon.className = "wi weathericon " + forecast.dayIcon;
+			iconCell.appendChild(icon);
 
-			var minTempCell = document.createElement(
-				"td"
-			);
-			minTempCell.className =
-				"temp-daily";
-			minTempCell.innerHTML =
-				forecast[1]
-					.temp +
-				"&deg;";
-			row.appendChild(
-				minTempCell
-			);
+			const minTempCell = document.createElement("td");
+			minTempCell.className = "temp-daily";
+			minTempCell.innerHTML = forecast.minTemp + "°";
+			row.appendChild(minTempCell);
 
-			iconCell = document.createElement(
-				"td"
-			);
-			iconCell.className =
-				"weather-icon";
-			row.appendChild(
-				iconCell
-			);
+			iconCell = document.createElement("td");
+			iconCell.className = "weather-icon";
+			row.appendChild(iconCell);
 
-			icon = document.createElement(
-				"span"
-			);
-			icon.className =
-				"wi weathericon " +
-				forecast[1]
-					.icon;
-			iconCell.appendChild(
-				icon
-			);
+			icon = document.createElement("span");
+			icon.className = "wi weathericon " + forecast.nightIcon;
+			iconCell.appendChild(icon);
 
-			// possibly add day wind speed information
- 			if (
-				this
-					.config
-					.showDailyWindInfo
-			) {
-				var windSpeedCell = document.createElement(
-					"td"
-				);
-				windSpeedCell.className =
-					"windspeed-daily";
+			if (this.config.showDailyWindInfo) {
+				const windSpeedCell = document.createElement("td");
+				windSpeedCell.className = "windspeed-daily";
 
-				var speed = 
-					forecast[0]
-						.wind;
-				if (
-					this
-						.config
-						.useBeaufort
-				) {
-					speed = this.ms2Beaufort(
-						this.roundValue(
-							speed
-						)
-					);
+				let speed = forecast.dayWind;
+				if (this.config.useBeaufort) {
+					speed = this.ms2Beaufort(this.roundValue(speed));
 				} else {
-					speed = parseFloat(
-						speed
-					).toFixed(
-						0
-					);
+					speed = parseFloat(speed).toFixed(0);
 				}
+				windSpeedCell.innerHTML = " " + speed;
 
-				windSpeedCell.innerHTML =
-					" " +
-					speed;
-				var windSpeedMark = document.createElement(
-					"sup"
-				);
-				windSpeedMark.innerHTML = this
-					.config
-					.useBeaufort
-					? "b"
-					: "s";
-				windSpeedCell.appendChild(
-					windSpeedMark
-				);
-				row.appendChild(
-					windSpeedCell
-				);
-				
-				// possibly add wind direction information
- 				if (
-					this
-						.config
-						.showWindDirection
-				) {
-					var windDirCell = document.createElement(
-						"td"
-					);
-					windDirCell.className =
-						"direction-daily";
-					if (
-						this
-							.config
-							.windDirectionMode == 0
-					) {
-						var windDirection = document.createElement(
-							"sup"
-						);
-						windDirection.innerHTML =
-							" " +
-							this.deg2Cardinal(
-								forecast[0]
-									.direction
-							);
-						windDirCell.appendChild(
-							windDirection
-						);
+				const windSpeedMark = document.createElement("sup");
+				windSpeedMark.innerHTML = this.config.useBeaufort ? "b" : "s";
+				windSpeedCell.appendChild(windSpeedMark);
+				row.appendChild(windSpeedCell);
+
+				if (this.config.showWindDirection) {
+					const windDirCell = document.createElement("td");
+					windDirCell.className = "direction-daily";
+					if (this.config.windDirectionMode === 0) {
+						const windDirection = document.createElement("sup");
+						windDirection.innerHTML = " " + this.deg2Cardinal(forecast.dayDirection);
+						windDirCell.appendChild(windDirection);
+					} else {
+						const windDirection = document.createElement("span");
+						windDirection.className = "wi wi-wind from-" + parseFloat(forecast.dayDirection).toFixed(0) + "-deg";
+						windDirCell.appendChild(windDirection);
 					}
-					else {
-						var windDirection = document.createElement(
-							"span"
-						);
-						windDirection.className =
-							"wi wi-wind from-" +
-								parseFloat(
-									forecast[0]
-										.direction
-								).toFixed(
-									0
-								) +
-							"-deg";
-						windDirCell.appendChild(
-							windDirection
-						);
-					}
-					row.appendChild(
-						windDirCell
-					);
+					row.appendChild(windDirCell);
 				}
+			}
 
-				// possibly add rain information
-				if (
-					this
-						.config
-						.showDailyRainInfo
-				) {						
-					var rainCell = document.createElement(
-						"td"
-					);
-					rainCell.className =
-						"rain-daily";
+			if (this.config.showDailyRainInfo) {
+				const rainCell = document.createElement("td");
+				rainCell.className = "rain-daily";
 
-					var rainUnitMark = document.createElement(
-						"span"
-					);
+				// *** MODIFICATION: Only show rain if it's more than 0 ***
+				const rainAmount = parseFloat(forecast.totalRain).toFixed(1);
+				if (rainAmount > 0.0) {
+					const rainUnitMark = document.createElement("span");
 					rainUnitMark.className = "mm-unit";
 					rainUnitMark.innerHTML = "mm";
-
-					rainCell.innerHTML =
-						" " +
-						parseFloat(
-							forecast[1]
-								.rainAcc
-						).toFixed(
-							1
-						)
-					rainCell.appendChild(
-						rainUnitMark
-					);
-					row.appendChild(
-						rainCell
-					);
+					rainCell.innerHTML = " " + rainAmount;
+					rainCell.appendChild(rainUnitMark);
+				} else {
+					rainCell.innerHTML = " "; // Show empty space instead of "0.0mm"
 				}
+				row.appendChild(rainCell);
 			}
 
-			if (
-				this
-					.config
-					.fade &&
-				this
-					.config
-					.fadePoint <
-					1
-			) {
-				if (
-					this
-						.config
-						.fadePoint <
-					0
-				) {
+			if (this.config.fade && this.config.fadePoint < 1) {
+				if (this.config.fadePoint < 0) {
 					this.config.fadePoint = 0;
 				}
-				var startingPoint =
-					this
-						.forecast
-						.length *
-					this
-						.config
-						.fadePoint;
-				var steps =
-					this
-						.forecast
-						.length -
-					startingPoint;
-				if (
-					f >=
-					startingPoint
-				) {
-					var currentStep =
-						f -
-						startingPoint;
-					row.style.opacity =
-						1 -
-						1 /
-							steps *
-							currentStep;
+				const startingPoint = this.forecast.length * this.config.fadePoint;
+				const steps = this.forecast.length - startingPoint;
+				if (f >= startingPoint) {
+					const currentStep = f - startingPoint;
+					row.style.opacity = 1 - (1 / steps) * currentStep;
 				}
 			}
 		}
 
-		var header = document.createElement(
-			"header"
-		);
+		const header = document.createElement("header");
 		header.innerHTML = this.config.title;
-		wrapper.appendChild(
-			header
-		);
-		wrapper.appendChild(
-			table
-		);
+		wrapper.appendChild(header);
+		wrapper.appendChild(table);
 
 		return wrapper;
 	},
 
-	/* updateWeather(compliments)
-	 * Requests new data from openweather.org.
-	 * Calls processWeather on succesfull response.
-	 */
-	updateWeather: function() {
-		var url = this.stringFormat(
-			this
-				.config
-				.url,
-			[
-				this
-					.config
-					.lon
-					.toFixed(4),
-				this
-					.config
-					.lat
-					.toFixed(4)
-			]
-		);
-		var self = this;
-		var retry = true;
+	updateWeather: function () {
+		const url = this.stringFormat(this.config.url, [this.config.lon.toFixed(4), this.config.lat.toFixed(4)]);
+		const self = this;
+		let retry = true;
 
-		var weatherRequest = new XMLHttpRequest();
-		weatherRequest.open(
-			"GET",
-			url,
-			true
-		);
-		weatherRequest.onreadystatechange = function() {
-			if (
-				this
-					.readyState ===
-				4
-			) {
-				if (
-					this
-						.status ===
-					200
-				) {
-					self.processWeather(
-						JSON.parse(
-							this
-								.response
-						)
-					);
-				} else if (
-					this
-						.status ===
-					401
-				) {
-					self.config.appid =
-						"";
-					self.updateDom(
-						self
-							.config
-							.animationSpeed
-					);
-
-					Log.error(
-						self.name +
-							": Load issue."
-					);
+		const weatherRequest = new XMLHttpRequest();
+		weatherRequest.open("GET", url, true);
+		weatherRequest.onreadystatechange = function () {
+			if (this.readyState === 4) {
+				if (this.status === 200) {
+					self.processWeather(JSON.parse(this.response));
+				} else if (this.status === 401) {
+					self.updateDom(self.config.animationSpeed);
+					Log.error(self.name + ": Credentials error. Check API key if required.");
 					retry = false;
 				} else {
-					Log.error(
-						self.name +
-							": Could not load weather."
-					);
+					Log.error(self.name + ": Could not load weather.");
 				}
 
-				if (
-					retry
-				) {
-					self.scheduleUpdate(
-						self.loaded
-							? -1
-							: self
-								.config
-								.retryDelay
-					);
+				if (retry) {
+					self.scheduleUpdate(self.loaded ? -1 : self.config.retryDelay);
 				}
 			}
 		};
 		weatherRequest.send();
 	},
 
-	/* processWeather(data)
-	 * Uses the received data to set the various values.
-	 *
-	 * argument data object - Weather information received form openweather.org.
-	 */
-	processWeather: function(
-		data
-	) {
-		this.list = [];
+	// *** MAJOR REWRITE OF THIS FUNCTION ***
+	// Finds the true min/max temperature for each day instead of using noon/midnight as a proxy.
+	processWeather: function (data) {
 		this.forecast = [];
 		this.current = null;
-		var closest = 50000;
-		var day = null;
-		var dayIndex = -1;
-		var rainAcc = 0;
+		let closest = 50000;
+		const dailyData = {}; // Object to hold data aggregated by day
 
-		for (
-			var i = 0,
-				count =
-					data
-						.timeSeries
-						.length;
-			i <
-			count;
-			i++
-		) {
-			var forecast =
-				data
-					.timeSeries[
-						i
-					];
+		// First, find the current weather (closest forecast to now)
+		for (const forecast of data.timeSeries) {
+			const item = this.createParsedItem(forecast);
+			const timeFromNow = Math.abs(item.time.diff(moment(), "minutes"));
+			if (timeFromNow < closest) {
+				closest = timeFromNow;
+				this.current = item;
+				// Set current icon (day/night based on current time)
+				const isDay = moment().isBetween(moment().startOf('day').add(6, 'hours'), moment().startOf('day').add(20, 'hours'));
+				this.current.icon = this.config.iconTable[this.current.icon_raw][isDay ? 0 : 1];
+			}
+		}
 
-			var item = {
-				time: moment(
-					forecast.validTime
-				),
-				day: moment(
-					moment(
-						forecast.validTime
-					),
-					"X"
-				).format(
-					"ddd"
-				),
-				icon: this.processWeatherGetItem(
-					"Wsymb2",
-					forecast
-				),
-				temp: parseFloat(
-					this.processWeatherGetItem(
-						"t",
-						forecast
-					).toFixed(
-						this
-							.config
-							.tempDecimals
-					)
-				),
-				wind: parseFloat(
-					this.roundValue(
-						this.processWeatherGetItem(
-							"ws",
-							forecast
-						)
-					)
-				),
-				direction: parseFloat(
-					this.roundValue(
-						this.processWeatherGetItem(
-							"wd",
-							forecast
-						)
-					)
-				),
-				rain: this.processWeatherGetItem(
-					"pmean",
-					forecast
-				),
-				cloud: parseFloat(
-					this.roundValue(
-						this.processWeatherGetItem(
-							"tcc_mean",
-							forecast
-						)
-					)
-				)
-			};
+		// Next, process all forecasts to find daily min/max/rain
+		for (const forecast of data.timeSeries) {
+			const item = this.createParsedItem(forecast);
 
-			if (
-				item.time.diff(
-					moment().endOf('day'),
-					"days"
-				) >=
-				this
-					.config
-					.maxNumberOfDays
-			) {
+			// Stop if we have reached the max number of days
+			if (item.time.diff(moment().endOf("day"), "days") >= this.config.maxNumberOfDays) {
 				break;
 			}
 
-			this.list.push(
-				item
-			);
+			const dayKey = item.time.format("YYYY-MM-DD");
 
-			if (
-				item.day !=
-				day
-			) {
-				day =
-					item.day;
-				dayIndex++;
-				rainAcc = 0;
-			}
-			
-			// Accumulate daily rain
-			rainAcc =
-				rainAcc +
-				parseFloat(
-					item.rain
-				);
-
-			if (
-				this
-					.forecast[
-						dayIndex
-					] ==
-				null
-			) {
-				this.forecast[
-					dayIndex
-				] = [];
+			// If it's the first entry for this day, initialize it
+			if (!dailyData[dayKey]) {
+				dailyData[dayKey] = {
+					day: item.day,
+					maxTemp: -100,
+					minTemp: 100,
+					totalRain: 0,
+					maxTempItem: null, // Store the full item for max temp
+					minTempItem: null // Store the full item for min temp
+				};
 			}
 
-			// Save current (closest to clock)
-			var timeFromNow = Math.abs(
-				item.time.diff(
-					moment(),
-					"minutes"
-				)
-			);
-			if (
-				timeFromNow <
-				closest
-			) {
-				closest = timeFromNow;
-				this.current = item;
+			// Aggregate data for the day
+			dailyData[dayKey].totalRain += item.rain;
+
+			if (item.temp > dailyData[dayKey].maxTemp) {
+				dailyData[dayKey].maxTemp = item.temp;
+				dailyData[dayKey].maxTempItem = item;
 			}
 
-			// Save forecast
-			var timeFormat = item.time.format(
-				"YYYY-MM-DD"
-			);
-			var timeDay = moment(
-				timeFormat +
-					" 12:00",
-				"YYYY-MM-DD HH:mm"
-			);
-			var timeNight = moment(
-				timeFormat +
-					" 23:59",
-				"YYYY-MM-DD HH:mm"
-			);
-			var timeFromNowDay = Math.abs(
-				item.time.diff(
-					timeDay,
-					"minutes"
-				)
-			);
-			var timeFromNowNight = Math.abs(
-				item.time.diff(
-					timeNight,
-					"minutes"
-				)
-			);
-
-			// set first
-			if (
-				this
-					.forecast[
-						dayIndex
-					][0] ==
-				null
-			) {
-				this.forecast[
-					dayIndex
-				][0] = this.processWeatherCreateItem(
-					0,
-					item,
-					rainAcc,
-					timeFromNowDay
-				);
-				this.forecast[
-					dayIndex
-				][1] = this.processWeatherCreateItem(
-					1,
-					item,
-					rainAcc,
-					timeFromNowNight
-				);
-			} else {
-				if (
-					timeFromNowDay <
-					this
-						.forecast[
-							dayIndex
-						][0]
-						.diff
-				) {
-					this.forecast[
-						dayIndex
-					][0] = this.processWeatherCreateItem(
-						0,
-						item,
-						rainAcc,
-						timeFromNowDay
-					);
-				} else if (
-					timeFromNowNight <
-					this
-						.forecast[
-							dayIndex
-						][1]
-						.diff
-				) {
-					this.forecast[
-						dayIndex
-					][1] = this.processWeatherCreateItem(
-						1,
-						item,
-						rainAcc,
-						timeFromNowNight
-					);
-				}
+			if (item.temp < dailyData[dayKey].minTemp) {
+				dailyData[dayKey].minTemp = item.temp;
+				dailyData[dayKey].minTempItem = item;
 			}
 		}
 
-		//Log.log(this.forecast);
+		// Now, build the final forecast array from the aggregated data
+		for (const dayKey in dailyData) {
+			const day = dailyData[dayKey];
+			// Ensure we have valid data before pushing
+			if (day.maxTempItem && day.minTempItem) {
+				this.forecast.push({
+					day: day.day,
+					maxTemp: day.maxTemp.toFixed(this.config.tempDecimals),
+					minTemp: day.minTemp.toFixed(this.config.tempDecimals),
+					totalRain: day.totalRain,
+					dayIcon: this.config.iconTable[day.maxTempItem.icon_raw][0], // Use day icon
+					nightIcon: this.config.iconTable[day.minTempItem.icon_raw][1], // Use night icon for min temp
+					dayWind: day.maxTempItem.wind,
+					dayDirection: day.maxTempItem.direction
+				});
+			}
+		}
 
 		this.loaded = true;
-		this.updateDom(
-			this
-				.config
-				.animationSpeed
-		);
+		this.updateDom(this.config.animationSpeed);
 	},
 
-	processWeatherGetItem(
-		id,
-		data
-	) {
-		for (
-			var i = 0,
-				count =
-					data
-						.parameters
-						.length;
-			i <
-			count;
-			i++
-		) {
-			var param =
-				data
-					.parameters[
-						i
-					];
-			if (
-				param.name ===
-				id
-			) {
-				return param
-					.values[0];
-			}
-		}
-		return null;
+	// Helper function to parse a single forecast entry from SMHI
+	createParsedItem: function(forecastData) {
+		return {
+			time: moment(forecastData.validTime),
+			day: moment(forecastData.validTime).format("ddd"),
+			icon_raw: this.getParameterValue("Wsymb2", forecastData), // Raw weather symbol code
+			temp: parseFloat(this.getParameterValue("t", forecastData)),
+			wind: parseFloat(this.getParameterValue("ws", forecastData)),
+			direction: parseFloat(this.getParameterValue("wd", forecastData)),
+			rain: parseFloat(this.getParameterValue("pmean", forecastData)),
+			cloud: parseFloat(this.getParameterValue("tcc_mean", forecastData))
+		};
 	},
 
-	processWeatherCreateItem(
-		index,
-		item,
-		rainAcc,
-		diff
-	) {
-		item.diff = diff;
-		if (
-			!isNaN(
-				item.icon
-			)
-		) {
-			item.icon = this.config.iconTable[
-				item.icon
-			][
-				index
-			];
-		}
-		
-		item.rainAcc = rainAcc;
-		
-		return item;
+	// Helper function to get a specific parameter from the SMHI data structure
+	getParameterValue(name, data) {
+		const param = data.parameters.find(p => p.name === name);
+		return param ? param.values[0] : null;
 	},
+	// *** END OF MAJOR REWRITE ***
 
-	/* scheduleUpdate()
-	 * Schedule next update.
-	 *
-	 * argument delay number - Milliseconds before next update. If empty, this.config.updateInterval is used.
-	 */
-	scheduleUpdate: function(
-		delay
-	) {
-		var nextLoad = this
-			.config
-			.updateInterval;
-		if (
-			typeof delay !==
-				"undefined" &&
-			delay >=
-				0
-		) {
+	scheduleUpdate: function (delay) {
+		let nextLoad = this.config.updateInterval;
+		if (typeof delay !== "undefined" && delay >= 0) {
 			nextLoad = delay;
 		}
 
-		var self = this;
-		clearTimeout(
-			this
-				.updateTimer
-		);
-		this.updateTimer = setTimeout(
-			function() {
-				self.updateWeather();
-			},
-			nextLoad
-		);
+		clearTimeout(this.updateTimer);
+		this.updateTimer = setTimeout(() => {
+			this.updateWeather();
+		}, nextLoad);
 	},
 
-	/* ms2Beaufort(ms)
-	 * Converts m2 to beaufort (windspeed).
-	 *
-	 * argument ms number - Windspeed in m/s.
-	 *
-	 * return number - Windspeed in beaufort.
-	 */
-	ms2Beaufort: function(
-		ms
-	) {
-		var kmh =
-			ms *
-			60 *
-			60 /
-			1000;
-		var speeds = [
-			1,
-			5,
-			11,
-			19,
-			28,
-			38,
-			49,
-			61,
-			74,
-			88,
-			102,
-			117,
-			1000
-		];
-		for (var beaufort in speeds) {
-			var speed =
-				speeds[
-					beaufort
-				];
-			if (
-				speed >
-				kmh
-			) {
+	ms2Beaufort: function (ms) {
+		const kmh = ms * 3.6;
+		const speeds = [1, 5, 11, 19, 28, 38, 49, 61, 74, 88, 102, 117, 1000];
+		for (const beaufort in speeds) {
+			if (speeds[beaufort] > kmh) {
 				return beaufort;
 			}
 		}
 		return 12;
 	},
 
-	/* deg2Cardinal(windDir)
-	 * Maps a wind direction in degrees
-	 * to text, e.g. NNE.
-	 *
-	 * argument windDir number - Wind direction in degrees.
-	 *
-	 * return string - Wind direction in text.
-	 */
-	deg2Cardinal: function(
-		deg
-	) {
-		return this
-			.config
-			.wdirDegreeToText[
-				(((deg + 11.25) / 22.5) - 0.5)
-					.toFixed(
-						0
-					)
-			];
+	deg2Cardinal: function (deg) {
+		return this.config.wdirDegreeToText[Math.round((deg % 360) / 22.5) % 16];
 	},
 
-	/* function(temperature)
-	 * Rounds a temperature to 1 decimal.
-	 *
-	 * argument temperature number - Temperature.
-	 *
-	 * return number - Rounded Temperature.
-	 */
-	roundValue: function(
-		value
-	) {
-		return parseFloat(
-			value
-		).toFixed(
-			1
-		);
+	roundValue: function (value) {
+		return parseFloat(value).toFixed(1);
 	}
 });
