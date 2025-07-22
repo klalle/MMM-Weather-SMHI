@@ -303,13 +303,12 @@ Module.register("MMM-Weather-SMHI", {
 		weatherRequest.send();
 	},
 
-	// *** MAJOR REWRITE OF THIS FUNCTION ***
 	// Finds the true min/max temperature for each day instead of using noon/midnight as a proxy.
 	processWeather: function (data) {
 		this.forecast = [];
 		this.current = null;
 		let closest = 50000;
-		const dailyData = {}; // Object to hold data aggregated by day
+		const dailyData = {};
 
 		// First, find the current weather (closest forecast to now)
 		for (const forecast of data.timeSeries) {
