@@ -4,12 +4,19 @@
  * Module: MMM-Weather-SMHI
  * By Fredrick Bäcker, updated by community
  * MIT Licensed.
+ *
+ * 2026-04-02 Mikael Karlsson
+ * Reformatted the code, switched to the new API (snow1g/v1)
+ *
+ * Modified: Real daily min/max temperatures instead of noon/midnight proxy.
+ *           Rain cell shown outside wind block; hidden when 0 mm.
  */
 
 Module.register("MMM-Weather-SMHI", {
 	// Default module config.
 	defaults: {
-		url: "http://opendata-download-metfcst.smhi.se/api/category/pmp3g/version/2/geotype/point/lon/%s/lat/%s/data.json",
+		// *** NEW API (snow1g v1) ***
+		url: "https://opendata-download-metfcst.smhi.se/api/category/snow1g/version/1/geotype/point/lon/%s/lat/%s/data.json",
 		lon: 0,
 		lat: 0,
 		useBeaufort: true,
@@ -146,7 +153,7 @@ Module.register("MMM-Weather-SMHI", {
 			}
 		}
 		const spacer = document.createElement("span");
-		spacer.innerHTML = " ";
+		spacer.innerHTML = " ";
 		small.appendChild(spacer);
 
 		const large = document.createElement("div");
@@ -237,11 +244,12 @@ Module.register("MMM-Weather-SMHI", {
 				}
 			}
 
+			// Rain info is independent of wind info (fixed from upstream bug)
 			if (this.config.showDailyRainInfo) {
 				const rainCell = document.createElement("td");
 				rainCell.className = "rain-daily";
 
-				// *** MODIFICATION: Only show rain if it's more than 0 ***
+				// Only show rain if more than 0 mm
 				const rainAmount = parseFloat(forecast.totalRain).toFixed(1);
 				if (rainAmount > 0.0) {
 					const rainUnitMark = document.createElement("span");
@@ -250,7 +258,7 @@ Module.register("MMM-Weather-SMHI", {
 					rainCell.innerHTML = " " + rainAmount;
 					rainCell.appendChild(rainUnitMark);
 				} else {
-					rainCell.innerHTML = " "; // Show empty space instead of "0.0mm"
+					rainCell.innerHTML = " ";
 				}
 				row.appendChild(rainCell);
 			}
@@ -289,7 +297,7 @@ Module.register("MMM-Weather-SMHI", {
 					self.processWeather(JSON.parse(this.response));
 				} else if (this.status === 401) {
 					self.updateDom(self.config.animationSpeed);
-					Log.error(self.name + ": Credentials error. Check API key if required.");
+					Log.error(self.name + ": Credentials error.");
 					retry = false;
 				} else {
 					Log.error(self.name + ": Could not load weather.");
@@ -318,7 +326,10 @@ Module.register("MMM-Weather-SMHI", {
 				closest = timeFromNow;
 				this.current = item;
 				// Set current icon (day/night based on current time)
-				const isDay = moment().isBetween(moment().startOf('day').add(6, 'hours'), moment().startOf('day').add(20, 'hours'));
+				const isDay = moment().isBetween(
+					moment().startOf('day').add(6, 'hours'),
+					moment().startOf('day').add(20, 'hours')
+				);
 				this.current.icon = this.config.iconTable[this.current.icon_raw][isDay ? 0 : 1];
 			}
 		}
@@ -334,19 +345,17 @@ Module.register("MMM-Weather-SMHI", {
 
 			const dayKey = item.time.format("YYYY-MM-DD");
 
-			// If it's the first entry for this day, initialize it
 			if (!dailyData[dayKey]) {
 				dailyData[dayKey] = {
 					day: item.day,
 					maxTemp: -100,
 					minTemp: 100,
 					totalRain: 0,
-					maxTempItem: null, // Store the full item for max temp
-					minTempItem: null // Store the full item for min temp
+					maxTempItem: null,
+					minTempItem: null
 				};
 			}
 
-			// Aggregate data for the day
 			dailyData[dayKey].totalRain += item.rain;
 
 			if (item.temp > dailyData[dayKey].maxTemp) {
@@ -360,18 +369,17 @@ Module.register("MMM-Weather-SMHI", {
 			}
 		}
 
-		// Now, build the final forecast array from the aggregated data
+		// Build the final forecast array from the aggregated daily data
 		for (const dayKey in dailyData) {
 			const day = dailyData[dayKey];
-			// Ensure we have valid data before pushing
 			if (day.maxTempItem && day.minTempItem) {
 				this.forecast.push({
 					day: day.day,
 					maxTemp: day.maxTemp.toFixed(this.config.tempDecimals),
 					minTemp: day.minTemp.toFixed(this.config.tempDecimals),
 					totalRain: day.totalRain,
-					dayIcon: this.config.iconTable[day.maxTempItem.icon_raw][0], // Use day icon
-					nightIcon: this.config.iconTable[day.minTempItem.icon_raw][1], // Use night icon for min temp
+					dayIcon: this.config.iconTable[day.maxTempItem.icon_raw][0],   // day icon for max temp hour
+					nightIcon: this.config.iconTable[day.minTempItem.icon_raw][1], // night icon for min temp hour
 					dayWind: day.maxTempItem.wind,
 					dayDirection: day.maxTempItem.direction
 				});
@@ -382,26 +390,30 @@ Module.register("MMM-Weather-SMHI", {
 		this.updateDom(this.config.animationSpeed);
 	},
 
-	// Helper function to parse a single forecast entry from SMHI
-	createParsedItem: function(forecastData) {
+	// Parses a single timeSeries entry from the new SMHI snow1g API.
+	// New API uses forecast.time and forecast.data[id] instead of
+	// forecast.validTime and forecast.parameters[].
+	createParsedItem: function (forecastData) {
+		const iconRaw = this.getParameterValue("symbol_code", forecastData);
 		return {
-			time: moment(forecastData.validTime),
-			day: moment(forecastData.validTime).format("ddd"),
-			icon_raw: this.getParameterValue("Wsymb2", forecastData), // Raw weather symbol code
-			temp: parseFloat(this.getParameterValue("t", forecastData)),
-			wind: parseFloat(this.getParameterValue("ws", forecastData)),
-			direction: parseFloat(this.getParameterValue("wd", forecastData)),
-			rain: parseFloat(this.getParameterValue("pmean", forecastData)),
-			cloud: parseFloat(this.getParameterValue("tcc_mean", forecastData))
+			time: moment(forecastData.time),
+			day: moment(forecastData.time).format("ddd"),
+			icon_raw: parseInt(iconRaw, 10), // symbol_code is numeric in snow1g API
+			temp: parseFloat(this.getParameterValue("air_temperature", forecastData)),
+			wind: parseFloat(this.getParameterValue("wind_speed", forecastData)),
+			direction: parseFloat(this.getParameterValue("wind_from_direction", forecastData)),
+			rain: parseFloat(this.getParameterValue("precipitation_amount_mean", forecastData) || 0),
+			cloud: parseFloat(this.getParameterValue("cloud_area_fraction", forecastData))
 		};
 	},
 
-	// Helper function to get a specific parameter from the SMHI data structure
-	getParameterValue(name, data) {
-		const param = data.parameters.find(p => p.name === name);
-		return param ? param.values[0] : null;
+	// Reads a parameter from the new API's data object (forecast.data[id]).
+	getParameterValue: function (name, data) {
+		if (!data.data || data.data[name] === undefined || data.data[name] === "") {
+			return null;
+		}
+		return data.data[name];
 	},
-	// *** END OF MAJOR REWRITE ***
 
 	scheduleUpdate: function (delay) {
 		let nextLoad = this.config.updateInterval;
